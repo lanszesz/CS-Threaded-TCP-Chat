@@ -116,6 +116,16 @@ namespace Server
             // The rest is filled with '\0' (' '), we trim it
             receivedMessage = receivedMessage.TrimEnd('\0');
 
+            if (receivedMessage == "/list")
+            {
+                string userNames = "Users: ";
+                foreach(Client client in Clients.Values)
+                {
+                    userNames += client.GetName() + ' ';
+                }
+                BroadcastServerMessage(userNames, 0);
+            }
+
             return receivedMessage;
         }
 
