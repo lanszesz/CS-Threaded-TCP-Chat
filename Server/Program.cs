@@ -17,6 +17,7 @@ namespace Server
         {
             ServerSocket = new TcpListener(IPAddress.Any, port);
             ServerSocket.Start();
+            Console.ForegroundColor = ConsoleColor.Magenta;
         }
 
         public void ListenForClients()
@@ -27,7 +28,6 @@ namespace Server
             {
                 Client newClient = new Client(ServerSocket.AcceptTcpClient());
                 lock (Lock) Clients.Add(id, newClient);
-                Console.WriteLine("A client has connected!");
 
                 Thread t = new Thread(ClientHandler);
                 t.Start(id);
@@ -42,6 +42,9 @@ namespace Server
             lock (Lock) client = Clients[id].GetClient();
 
             Clients[id].SetName(GetMessage(client.GetStream()));
+            Console.WriteLine(DateTime.Now.ToString("[HH:mm:ss] ") + Clients[id].GetName() + " has connected!");
+            SendMessage(client.GetStream(), DateTime.Now.ToString("[HH:mm:ss] ") +  "SERVER: Hi. You are connected!");
+            BroadcastServerMessage(Clients[id].GetName() + " has connected!", id);
 
             while (true)
             {
@@ -53,7 +56,7 @@ namespace Server
                 }
 
                 Broadcast(message, id);
-                Console.WriteLine(Clients[id].GetName() + message);
+                Console.WriteLine(DateTime.Now.ToString("[HH:mm:ss] ") + Clients[id].GetName() + ": " + message);
             }
 
             lock (Lock) Clients.Remove(id);
@@ -75,8 +78,28 @@ namespace Server
 
                     TcpClient client = Clients[i].GetClient();
                     NetworkStream stream = client.GetStream();
-                    message = Clients[i].GetName() + message;
-                    SendMessage(stream, message);
+                    string formattedMessage = DateTime.Now.ToString("[HH:mm:ss] ") + Clients[currentClientId].GetName() + ": " + message;
+                    SendMessage(stream, formattedMessage);
+                }
+            }
+        }
+
+        public static void BroadcastServerMessage(string message, int currentClientId)
+        {
+            lock (Lock)
+            {
+                for (int i = 0; i < Clients.Count; i++)
+                {
+                    // Don't broadcast the message back to the sender
+                    if (i == currentClientId)
+                    {
+                        continue;
+                    }
+
+                    TcpClient client = Clients[i].GetClient();
+                    NetworkStream stream = client.GetStream();
+                    string formattedMessage = DateTime.Now.ToString("[HH:mm:ss] ") + "SERVER: " + message;
+                    SendMessage(stream, formattedMessage);
                 }
             }
         }
