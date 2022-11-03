@@ -43,7 +43,9 @@ namespace Client
             // Send message loop
             while (true)
             {
+
                 string message = Console.ReadLine();
+                Console.Write("All: ");
 
                 Console.SetCursorPosition(0, Console.CursorTop - 1);
                 ClearCurrentConsoleLine();
