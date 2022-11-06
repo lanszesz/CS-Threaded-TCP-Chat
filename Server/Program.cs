@@ -25,6 +25,11 @@ namespace Server
             Console.ForegroundColor = ConsoleColor.DarkYellow;
 
             LoadHeader();
+
+            Console.WriteLine("Server started on port: " + port);
+
+            Thread serverConsoleThread = new Thread(ServerConsole);
+            serverConsoleThread.Start();
         }
 
         public void ListenForClients()
@@ -39,6 +44,52 @@ namespace Server
                 Thread t = new Thread(ClientHandler);
                 t.Start(clientIndex);
             }
+        }
+
+        public static void ServerConsole()
+        {
+            Response serverResponse = new Response();
+
+            while (true)
+            {
+                string input = Console.ReadLine();
+
+                if (input.Contains("/kick "))
+                {
+                    serverResponse.ToName = input.Substring(6);
+                    serverResponse.Action = 3;
+
+                    NetworkStream stream = GetClientStreamByName(serverResponse.ToName);
+
+                    if (stream == null)
+                    {
+                        Console.WriteLine("Client doesn't exists: " + serverResponse.ToName);
+                        continue;
+                    }
+
+                    SendText(stream, JsonSerializer.Serialize(serverResponse));
+                }
+
+                FormatConsole(input);
+
+                serverResponse.Text = input;
+
+                Console.WriteLine(serverResponse);
+                BroadcastResponse(-1, JsonSerializer.Serialize(serverResponse));
+            }
+        }
+
+        private static NetworkStream GetClientStreamByName(string name)
+        {
+            foreach (Client c in Clients.Values)
+            {
+                if (c.GetName() == name)
+                {
+                    return c.GetClient().GetStream();
+                }
+            }
+
+            return null;
         }
 
         public static void ClientHandler(object o)
@@ -66,19 +117,26 @@ namespace Server
 
             SendText(stream, JsonSerializer.Serialize(handshake));
 
-            Thread.Sleep(10);
-
             string clientHandshake = GetText(clientIndex);
 
             Handshake hs = JsonSerializer.Deserialize<Handshake>(clientHandshake);
 
             listClient.SetName(hs.Name);
 
+            // Broadcast that a new user is connected
             ServerResponse(1, clientIndex);
 
             while (true)
             {
                 string response = GetText(clientIndex);
+
+                if (response == null)
+                {
+                    ServerResponse(2, clientIndex);
+                    RemoveClient(clientIndex);
+                    return;
+                }
+
                 HandleResponse(response);
             }
         }
@@ -93,8 +151,15 @@ namespace Server
             {
                 case 1:
                     response.Text = "User connected: " + client.GetName();
+                    response.Action = 1;
                     break;
                 case 2:
+                    response.Text = "User left: " + client.GetName();
+                    response.Action = 2;
+                    BroadcastResponse(targetClientId, JsonSerializer.Serialize(response));
+                    Console.WriteLine(response);
+                    return;
+                case 3:
                     string users = "Users:";
 
                     foreach(Client c in Clients.Values)
@@ -147,7 +212,7 @@ namespace Server
             }
             catch (Exception)
             {
-                RemoveClient(clientIndex);
+                return null;
             }
 
             // Buffer size is larger than the actual message
@@ -210,6 +275,29 @@ namespace Server
             byte[] buffer = Encoding.Default.GetBytes(response);
 
             stream.Write(buffer, 0, buffer.Length);
+        }
+
+        private static void FormatConsole(string message)
+        {
+            // How many rows the blablabla takes
+            int repeat = 1;
+
+            if (message.Length > Console.WindowWidth)
+            {
+                repeat = 2;
+            }
+            else if (message.Length > Console.WindowWidth * 2)
+            {
+                repeat = 3;
+            }
+
+            int currentLineCursor = Console.CursorTop - 1;
+            while (repeat-- != 0)
+            {
+                Console.Write(new string(' ', Console.WindowWidth));
+                Console.SetCursorPosition(0, currentLineCursor);
+                currentLineCursor--;
+            }
         }
     }
 
@@ -326,7 +414,11 @@ namespace Server
     {
         static void Main(string[] args)
         {
-            Server chatServer = new Server(7676);
+            Console.Write("Port: ");
+            int port = Int32.Parse(Console.ReadLine());
+            Console.Clear();
+
+            Server chatServer = new Server(port);
             chatServer.ListenForClients();
         }
     }

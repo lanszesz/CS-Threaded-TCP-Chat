@@ -21,7 +21,25 @@ namespace Client
         public Client(IPAddress ip, int port, string name)
         {
             client = new TcpClient();
-            client.Connect(ip, port);
+
+            bool ok = false;
+            while (!ok)
+            {
+                try
+                {
+                    client.Connect(ip, port);
+                    ok = true;
+                }
+                catch (Exception)
+                {
+                    Console.WriteLine("Couldn't connect to server");
+                    Console.WriteLine("Press enter to retry...");
+                    Console.ReadLine();
+                }
+            }
+
+            Console.Clear();
+
             this.name = name;
         }
 
@@ -80,6 +98,11 @@ namespace Client
                 Response response = new Response();
 
                 FormatConsole(message);
+
+                if (message == null)
+                {
+                    ServerShutdown();
+                }
 
                 if (message.Contains("/w "))
                 {
@@ -148,7 +171,14 @@ namespace Client
         {
             byte[] buffer = Encoding.Default.GetBytes(message);
 
-            stream.Write(buffer, 0, buffer.Length);
+            try
+            {
+                stream.Write(buffer, 0, buffer.Length);
+            }
+            catch (Exception)
+            {
+                ServerShutdown();
+            }
         }
 
         // When the user types stuff: blablabla
@@ -193,7 +223,14 @@ namespace Client
 
             byte[] buffer = new byte[512];
 
-            stream.Read(buffer, 0, buffer.Length);
+            try
+            {
+                stream.Read(buffer, 0, buffer.Length);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
 
             // Buffer size is larger than the actual message
             // The rest is filled with '\0' (' '), we trim it
@@ -204,6 +241,11 @@ namespace Client
 
         private void HandleResponse(string receivedResponse)
         {
+            if (receivedResponse == null)
+            {
+                ServerShutdown();
+            }
+
             Response response = JsonSerializer.Deserialize<Response>(receivedResponse);
 
             Console.WriteLine(response);
@@ -212,12 +254,14 @@ namespace Client
             {
                 case 1:
                     usersOnline++;
+                    SetWindowTitle();
                     break;
                 case 2:
                     usersOnline--;
+                    SetWindowTitle();
                     break;
                 case 3:
-                    Exit();
+                    Kick();
                     break;
                 case 4:
                     NameError();
@@ -227,6 +271,26 @@ namespace Client
             }
         }
 
+        private void ServerShutdown()
+        {
+            Console.BackgroundColor = ConsoleColor.Red;
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("Server has been shut down");
+            Console.ReadKey();
+            Exit();
+        }
+
+        private void Kick()
+        {
+            Console.BackgroundColor = ConsoleColor.Red;
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine("You have been kicked out from the server!");
+            Console.ReadKey();
+            Console.BackgroundColor = ConsoleColor.Black;
+
+            Exit();
+        }
+
         private void NameError()
         {
             throw new NotImplementedException();
@@ -234,7 +298,7 @@ namespace Client
 
         private void Exit()
         {
-            throw new NotImplementedException();
+            Environment.Exit(0);
         }
     }
 
@@ -298,9 +362,53 @@ namespace Client
         {
             Console.Write("Name: ");
             string name = Console.ReadLine();
+
+            bool ok = false;
+
+            IPAddress ip = null;
+            while (!ok)
+            {
+                Console.Write("Server IP address: ");
+                string input = Console.ReadLine();
+
+                if (input == "localhost")
+                {
+                    ip = IPAddress.Parse("127.0.0.1");
+                    ok = true;
+                    continue;
+                }
+
+                try
+                {
+                    ip = IPAddress.Parse(input);
+                    ok = true;
+                }
+                catch (Exception)
+                {
+                    Console.Clear();
+                }
+            }
+
+            ok = false;
+
+            int port = 0;
+            while (!ok)
+            {
+                Console.Write("Server port: ");
+                try
+                {
+                    port = int.Parse(Console.ReadLine());
+                    ok = true;
+                }
+                catch (Exception)
+                {
+                    Console.Clear();
+                }
+            }
+
             Console.Clear();
 
-            Client client = new Client(IPAddress.Parse("127.0.0.1"), 7676, name);
+            Client client = new Client(ip, port, name);
             client.Handshake();
         }
     }
