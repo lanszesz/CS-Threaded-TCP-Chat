@@ -115,12 +115,22 @@ namespace Server
                 Header = Header,
             };
 
-            SendText(stream, JsonSerializer.Serialize(handshake));
-
             string clientHandshake = GetText(clientIndex);
 
-            Handshake hs = JsonSerializer.Deserialize<Handshake>(clientHandshake);
+            // Connection from browser = crash or anything else
+            Handshake hs = null;
+            try
+            {
+                hs = JsonSerializer.Deserialize<Handshake>(clientHandshake);
+            }
+            catch (Exception)
+            {
+                Console.WriteLine(clientHandshake);
+                RemoveClient(clientIndex);
+                return;
+            }
 
+            SendText(stream, JsonSerializer.Serialize(handshake));
             listClient.SetName(hs.Name);
 
             // Broadcast that a new user is connected
@@ -228,7 +238,7 @@ namespace Server
 
             if (response.Text == "/list")
             {
-                ServerResponse(2, (int)response.SenderId);
+                ServerResponse(3, (int)response.SenderId);
                 return;
             }
 

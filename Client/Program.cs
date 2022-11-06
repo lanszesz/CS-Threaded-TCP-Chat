@@ -62,9 +62,17 @@ namespace Client
 
         private void HandleHandshake()
         {
+            Handshake handshake = new Handshake();
+
+            // Sending the handshake back with our name
+            handshake.Name = name;
+
+            byte[] buffer = Encoding.Default.GetBytes(JsonSerializer.Serialize(handshake));
+            stream.Write(buffer, 0, buffer.Length);
+
             string receivedHandshake = GetText(client);
 
-            Handshake handshake = JsonSerializer.Deserialize<Handshake>(receivedHandshake);
+            handshake = JsonSerializer.Deserialize<Handshake>(receivedHandshake);
 
             // CW and setting variable by handshake
             id = handshake.Id;
@@ -76,12 +84,6 @@ namespace Client
             Console.WriteLine(handshake.Header);
             Console.ForegroundColor = ConsoleColor.DarkYellow;
             Console.WriteLine(handshake.Timestamp + " " + handshake.Text);
-
-            // Sending the handshake back with our name
-            handshake.Name = name;
-
-            byte[] buffer = Encoding.Default.GetBytes(JsonSerializer.Serialize(handshake));
-            stream.Write(buffer, 0, buffer.Length);
 
             Console.ForegroundColor = ConsoleColor.Green;
         }
@@ -102,6 +104,11 @@ namespace Client
                 if (message == null)
                 {
                     ServerShutdown();
+                }
+
+                if (message == "/exit")
+                {
+                    Exit();
                 }
 
                 if (message.Contains("/w "))
